@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Valentine’s Mini Game</title>
+  <style>
+    :root{
+      --bg1:#ffdde1;
+      --bg2:#ee9ca7;
+      --card: rgba(255,255,255,.78);
+      --text:#242424;
+      --pink:#ff4d6d;
+      --pink2:#ff8fa3;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text);
+      background: radial-gradient(circle at top, var(--bg1), var(--bg2));
+      overflow:hidden;
+    }
+
+    /* game layer */
+    .game{
+      position:fixed; inset:0;
+      display:grid; place-items:center;
+      padding:18px;
+    }
+    .card{
+      width:min(560px, 94vw);
+      border-radius:26px;
+      background:var(--card);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 65px rgba(0,0,0,.18);
+      padding:26px;
+      text-align:center;
+      position:relative;
+      z-index:5;
+    }
+    h1{margin:0 0 6px; font-size:2rem}
+    p{margin:0 0 12px; line-height:1.35}
+    .sub{opacity:.85; font-size:.98rem; margin-bottom:10px}
+
+    .hud{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      margin:14px 0 10px;
+      font-weight:700;
+      font-size:.95rem;
+      opacity:.9;
+    }
+    .hud span{background:rgba(255,255,255,.7); padding:8px 10px; border-radius:14px}
+
+    /* buttons */
+    .btn-row{
+      display:flex;
+      justify-content:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    button{
+      border:0;
+      padding:12px 18px;
+      border-radius:16px;
+      font-weight:800;
+      cursor:pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,.12);
+      transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+      user-select:none;
+      touch-action:manipulation;
+    }
+    button:active{transform: translateY(1px)}
+    #yesBtn{
+      background:var(--pink);
+      color:white;
+      transform: scale(1);
+      will-change: transform;
+    }
+    #yesBtn.glow{
+      box-shadow: 0 14px 34px rgba(255,77,109,.35);
+      filter:saturate(1.15);
+    }
+
+    /* NO is not inside card — it’s the “enemy” moving around the screen */
+    #noBtn{
+      position:fixed;
+      left:50%;
+      top:65%;
+      transform: translate(-50%, -50%);
+      background:white;
+      color:var(--pink);
+      border:2px solid rgba(255,77,109,.35);
+      z-index:4;
+      will-change: left, top, transform;
+    }
+
+    .toast{
+      margin-top:12px;
+      background: rgba(255,255,255,.78);
+      border-radius:16px;
+      padding:12px 12px;
+      font-weight:700;
+      min-height:46px;
+      display:grid;
+      place-items:center;
+    }
+
+    .result{
+      margin-top:14px;
+      padding:14px;
+      border-radius:18px;
+      background: rgba(255,255,255,.82);
+      display:none;
+    }
+
+    .tiny{
+      margin-top:10px;
+      opacity:.8;
+      font-size:.92rem;
+    }
+
+    /* hearts */
+    .heart{
+      position:absolute;
+      width:14px; height:14px;
+      transform: rotate(45deg);
+      background: rgba(255,77,109,0.65);
+      animation: floatUp linear forwards;
+      filter: drop-shadow(0 6px 10px rgba(0,0,0,.12));
+      z-index:1;
+    }
+    .heart:before,.heart:after{
+      content:"";
+      position:absolute;
+      width:14px; height:14px;
+      border-radius:50%;
+      background: rgba(255,77,109,0.65);
+    }
+    .heart:before{left:-7px; top:0}
+    .heart:after{left:0; top:-7px}
+
+    @keyframes floatUp{
+      from{ transform: translateY(0) rotate(45deg); opacity:.9; }
+      to{ transform: translateY(-120vh) rotate(45deg); opacity:0; }
+    }
+
+    /* small screens safety */
+    @media (max-width:420px){
+      h1{font-size:1.65rem}
+      .hud{flex-direction:column}
+      #noBtn{padding:10px 16px}
+    }
+  </style>
+</head>
+<body>
+
+<div class="game" id="game">
+  <div class="card">
+    <h1>Hey <span id="name">bebe</span> 💘</h1>
+    <p>Will you be my Valentine and go out with me? 🥺</p>
+    <div class="sub">Mini-game: try to tap “No”… if you can 😭</div>
+
+    <div class="hud">
+      <span>“No” attempts: <span id="attempts">0</span></span>
+      <span>YES power: <span id="power">1.0×</span></span>
+    </div>
+
+    <div class="btn-row">
+      <button id="yesBtn">YES 💖</button>
+    </div>
+
+    <div class="toast" id="toast">Go ahead… try pressing “No.” 😌</div>
+
+    <div class="result" id="result"></div>
+    <div class="tiny" id="tiny">Tip: “No” runs away when you get close. 🐱🐭</div>
+  </div>
+
+  <!-- the runaway button -->
+  <button id="noBtn" aria-label="No button">No 😭</button>
+</div>
+
+<script>
+  // ====== EDIT THESE ======
+  const herName  = "ISIBBY";
+  const datePlan = "Dinner + something cute after";
+  const timePlan = "4:15 PM";
+  const placePlan= "Steakhouseee";
+  // ========================
+
+  document.getElementById("name").textContent = herName;
+
+  const yesBtn = document.getElementById("yesBtn");
+  const noBtn  = document.getElementById("noBtn");
+  const toast  = document.getElementById("toast");
+  const result = document.getElementById("result");
+  const attemptsEl = document.getElementById("attempts");
+  const powerEl = document.getElementById("power");
+
+  const prompts = [
+    "You sure? 😭",
+    "Reconsider… pls 🥺",
+    "That’s crazy… try again 😌",
+    "Be so fr right now 😭",
+    "Okay but like… WHY 😭",
+    "This button is fighting for its life 💀",
+    "Last chance… choose wisely 😏"
+  ];
+
+  let noAttempts = 0;
+  let yesScale = 1;
+  let lastPointer = { x: window.innerWidth/2, y: window.innerHeight/2 };
+
+  // Place NO somewhere reasonable on load
+  moveNoToRandomSpot();
+
+  // Make YES grow and glow
+  function buffYes(){
+    yesScale = Math.min(2.35, +(yesScale + 0.18).toFixed(2));
+    yesBtn.style.transform = `scale(${yesScale})`;
+    yesBtn.classList.add("glow");
+    powerEl.textContent = `${yesScale.toFixed(1)}×`;
+    setTimeout(() => yesBtn.classList.remove("glow"), 220);
+  }
+
+  function setToast(msg){
+    toast.textContent = msg;
+  }
+
+  // Keep NO inside screen bounds
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  function moveNoTo(x, y){
+    const rect = noBtn.getBoundingClientRect();
+    const pad = 12;
+    const minX = pad;
+    const minY = pad;
+    const maxX = window.innerWidth - rect.width - pad;
+    const maxY = window.innerHeight - rect.height - pad;
+
+    noBtn.style.left = clamp(x, minX, maxX) + "px";
+    noBtn.style.top  = clamp(y, minY, maxY) + "px";
+    noBtn.style.transform = "translate(0,0)";
+  }
+
+  function moveNoToRandomSpot(){
+    const rect = noBtn.getBoundingClientRect();
+    const pad = 12;
+    const x = pad + Math.random() * (window.innerWidth - rect.width - pad*2);
+    const y = pad + Math.random() * (window.innerHeight - rect.height - pad*2);
+    moveNoTo(x, y);
+  }
+
+  // Cat & mouse logic: if pointer gets close, NO runs away
+  function runAwayFrom(px, py){
+    const r = noBtn.getBoundingClientRect();
+    const cx = r.left + r.width/2;
+    const cy = r.top  + r.height/2;
+
+    const dx = cx - px;
+    const dy = cy - py;
+    const dist = Math.max(1, Math.hypot(dx, dy));
+
+    // “speed” increases slightly with attempts
+    const base = 120 + Math.min(140, noAttempts * 12);
+    const stepX = (dx / dist) * base;
+    const stepY = (dy / dist) * base;
+
+    // new target
+    moveNoTo(cx + stepX - r.width/2, cy + stepY - r.height/2);
+  }
+
+  // track pointer (mouse + touch)
+  window.addEventListener("pointermove", (e) => {
+    lastPointer = { x: e.clientX, y: e.clientY };
+  }, { passive:true });
+
+  // Also track touches (some phones don’t fire pointermove consistently)
+  window.addEventListener("touchmove", (e) => {
+    const t = e.touches && e.touches[0];
+    if (t) lastPointer = { x: t.clientX, y: t.clientY };
+  }, { passive:true });
+
+  // check proximity 60fps-ish
+  function proximityLoop(){
+    const r = noBtn.getBoundingClientRect();
+    const cx = r.left + r.width/2;
+    const cy = r.top  + r.height/2;
+    const dist = Math.hypot(cx - lastPointer.x, cy - lastPointer.y);
+
+    // if close, run
+    if (dist < 140){
+      runAwayFrom(lastPointer.x, lastPointer.y);
+    }
+    requestAnimationFrame(proximityLoop);
+  }
+  proximityLoop();
+
+  // When she tries to click NO, it teleports + buffs YES + shows prompt
+  function noAttempt(){
+    noAttempts++;
+    attemptsEl.textContent = noAttempts;
+
+    buffYes();
+    setToast(prompts[(noAttempts - 1) % prompts.length]);
+
+    // teleport somewhere else
+    moveNoToRandomSpot();
+
+    // after a few tries, make it extra obvious
+    if (noAttempts === 6){
+      setToast("Okay okay… I think the universe is telling you to press YES 😌💘");
+    }
+    if (noAttempts >= 9){
+      // “No” gives up and becomes helpful
+      noBtn.textContent = "Fine… YES 😭";
+      noBtn.style.background = "rgba(255,77,109,.12)";
+      noBtn.style.borderColor = "rgba(255,77,109,.55)";
+      setToast("It’s over. The NO button has accepted fate. 😭");
+    }
+  }
+
+  // Make “No” run on hover / press
+  noBtn.addEventListener("mouseenter", noAttempt);
+  noBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); noAttempt(); });
+  noBtn.addEventListener("click", (e) => { e.preventDefault(); noAttempt(); });
+
+  // YES click: win screen
+  yesBtn.addEventListener("click", () => {
+    result.style.display = "block";
+    result.innerHTML = `
+      <h2 style="margin:0 0 6px;">YAYYYYY 💞</h2>
+      <div style="font-size:1.05rem; line-height:1.35;">
+        Okay bet. Here’s the plan:
+        <br><strong>${datePlan}</strong>
+        <br>Time: <strong>${timePlan}</strong>
+        <br>Where: <strong>${placePlan}</strong>
+        <br><br>
+        Text me “YES” so I know you saw this 😌
+      </div>
+    `;
+    setToast("Best choice ever 😌💖");
+    burstHearts(50);
+  });
+
+  function burstHearts(n){
+    for (let i=0;i<n;i++){
+      const h = document.createElement("div");
+      h.className = "heart";
+      const left = Math.random() * window.innerWidth;
+      const size = 10 + Math.random()*18;
+      const duration = 3 + Math.random()*3;
+      h.style.left = left + "px";
+      h.style.bottom = "-20px";
+      h.style.width = size + "px";
+      h.style.height= size + "px";
+      h.style.animationDuration = duration + "s";
+      h.style.opacity = 0.5 + Math.random()*0.5;
+      document.body.appendChild(h);
+      setTimeout(()=>h.remove(), duration*1000);
+    }
+  }
+
+  // handle resize so NO stays on screen
+  window.addEventListener("resize", () => {
+    const r = noBtn.getBoundingClientRect();
+    moveNoTo(r.left, r.top);
+  });
+</script>
+
+</body>
+</html>
